@@ -2665,8 +2665,9 @@ Item {
     id: authLoader
     sourceComponent: root.providerId === "imap" ? imapAuthComponent
       : (root.providerId === "jmap" ? jmapAuthComponent
+      : (root.providerId === "exchange" ? exchangeAuthComponent
       : (root.providerId === "outlook" ? outlookAuthComponent
-        : (root.providerId === "hey" ? heyAuthComponent : gmailAuthComponent)))
+        : (root.providerId === "hey" ? heyAuthComponent : gmailAuthComponent))))
   }
 
   // The client takes the manager as a required property, so it cannot be built
@@ -2678,7 +2679,7 @@ Item {
     id: apiLoader
     active: !!authLoader.item
     sourceComponent: root.clientOverride ? root.clientOverride
-      : (root.providerId === "imap" || root.providerId === "outlook"
+      : (root.providerId === "imap" || root.providerId === "outlook" || root.providerId === "exchange"
         ? imapClientComponent
         : (root.providerId === "jmap" ? jmapClientComponent
           : (root.providerId === "hey" ? heyClientComponent : gmailClientComponent)))
@@ -2774,6 +2775,23 @@ Item {
       }
       onLoggedOut: root.clearNotice()
       onCredentialsSaved: root.note("Mailbox saved")
+      onSessionUnavailable: function(reason) { root.fail(reason) }
+    }
+  }
+
+  Component {
+    id: exchangeAuthComponent
+
+    ExchangeAuth {
+      platform: root.platform
+      backend: root.backend
+      pluginDir: root.pluginDir
+      accountId: root.accountId
+      configuredEmail: root.configuredEmail
+      entrySettings: root.imapSettings
+
+      onLoginSucceeded: root.afterSignIn()
+      onLoggedOut: root.clearNotice()
       onSessionUnavailable: function(reason) { root.fail(reason) }
     }
   }
