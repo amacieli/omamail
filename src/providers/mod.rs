@@ -78,6 +78,13 @@ const PROVIDERS: &[Provider] = &[
         capabilities: IMAP_CAPABILITIES,
     },
     Provider {
+        id: "exchange",
+        name: "Exchange",
+        summary: "Microsoft Exchange, signed in securely with Microsoft.",
+        auth: "oauth",
+        capabilities: IMAP_CAPABILITIES,
+    },
+    Provider {
         id: "hey",
         name: "HEY",
         summary: "37signals' own mailbox, read through the HEY CLI they publish.",
@@ -204,7 +211,7 @@ mod tests {
                 .iter()
                 .map(|p| p["id"].as_str().unwrap())
                 .collect::<Vec<_>>(),
-            ["gmail", "outlook", "hey", "jmap", "imap"]
+            ["gmail", "outlook", "exchange", "hey", "jmap", "imap"]
         );
         for provider in providers {
             assert_eq!(
@@ -219,6 +226,6 @@ mod tests {
             }
         }
         assert_eq!(providers[0]["capabilities"]["conversations"], false);
-        assert_eq!(providers[2]["capabilities"]["conversations"], true);
+        assert_eq!(providers[3]["capabilities"]["conversations"], true);
     }
 }
