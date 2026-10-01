@@ -24,12 +24,20 @@ fn flows() -> &'static Mutex<HashMap<String, DeviceFlow>> {
     FLOWS.get_or_init(Default::default)
 }
 
-// Push sender: set once at server start so the poll task can push notifications to QML.
-static PUSH_SENDER: std::sync::OnceLock<tokio::sync::mpsc::Sender<serde_json::Value>> =
-    std::sync::OnceLock::new();
+// Push sender: set at server start so the poll task can push notifications to QML.
+// Held weakly: a strong clone in a static would keep the response channel open
+// after the protocol loop ends, so the writer thread would never finish.
+static PUSH_SENDER: std::sync::Mutex<Option<tokio::sync::mpsc::WeakSender<serde_json::Value>>> =
+    std::sync::Mutex::new(None);
 
 pub fn set_push_sender(sender: tokio::sync::mpsc::Sender<serde_json::Value>) {
-    let _ = PUSH_SENDER.set(sender);
+    if let Ok(mut slot) = PUSH_SENDER.lock() {
+        *slot = Some(sender.downgrade());
+    }
+}
+
+fn push_sender() -> Option<tokio::sync::mpsc::Sender<serde_json::Value>> {
+    PUSH_SENDER.lock().ok()?.as_ref()?.upgrade()
 }
 
 fn random() -> Result<String, &'static str> {
@@ -200,7 +208,7 @@ pub(super) async fn begin(params: &Value) -> Result<Value, &'static str> {
                             }
                         }
                     }
-                    if let Some(sender) = PUSH_SENDER.get() {
+                    if let Some(sender) = push_sender() {
                         let notification = json!({
                             "method": "auth.microsoft.done",
                             "params": result,
@@ -210,7 +218,7 @@ pub(super) async fn begin(params: &Value) -> Result<Value, &'static str> {
                     break;
                 }
                 Err(_) => {
-                    if let Some(sender) = PUSH_SENDER.get() {
+                    if let Some(sender) = push_sender() {
                         let notification = json!({
                             "method": "auth.microsoft.done",
                             "params": { "error": "auth_poll_failed" },
@@ -337,10 +345,7 @@ mod tests {
 
     #[test]
     fn scope_validation_allows_known_graph_scopes() {
-        let valid = json!([
-            "https://graph.microsoft.com/Mail.Read",
-            "offline_access"
-        ]);
+        let valid = json!(["https://graph.microsoft.com/Mail.Read", "offline_access"]);
         assert!(validate_scopes(&valid).is_ok());
 
         let invalid = json!(["https://graph.microsoft.com/User.Readwrite.All"]);
